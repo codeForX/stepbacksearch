@@ -5,4 +5,5 @@ This is a proof of concept for a system that makes multiple searches at once to 
 
 Training Dataset: sruly/StepBackSearch based on OpenAssistant/oasst1
 
+[demo](https://stepbacksearch.streamlit.app/)
 
