@@ -12,22 +12,27 @@ import asyncio
 
 from openai import OpenAI
 import streamlit as st
-# load_dotenv()
+
+# prepare the api keys
 COHARE_TRIAL_API_KEY = st.secrets.get("COHARE_TRIAL_API_KEY")
-co = cohere.Client(COHARE_TRIAL_API_KEY)
 BRAVE_TOKEN = st.secrets.get("BRAVE_API_KEY")
+
+co = cohere.Client(COHARE_TRIAL_API_KEY)
+
 client = OpenAI()
     
 
 
-def prepare_string(data: list):
+def prepare_string(search_results: list):
     """
     prepare the string to be displayed in the chat and to be seen by the llm
+    :data: list of search results 
+    :return: the string to be displayed
     """
-    if len(data) == 0:
+    if len(search_results) == 0:
         return 'no results found'
     url_groups = defaultdict(list)
-    for result in data[::-1]:
+    for result in search_results[::-1]:
         url_groups[result['url']].append(result)
     output = ""
     for url, results in url_groups.items():
@@ -52,12 +57,18 @@ def prepare_string(data: list):
 def rerank(query,snippets, top_n=10):
     """
     method to rerank the snippets according to what is most likely to help answer the question
+    :query: the question
+    :snippets: the snippets to be reranked
+    :top_n: the number of snippets to return
+    :return: the reranked snippets
     """
     return [result.document for result in co.rerank(query,documents=snippets,top_n=top_n, model='rerank-english-v2.0')]
 
 def descriptionBad(hostname: str, description: str) -> bool:
     """
-    returns whetehr the description is bad or not
+    returns wheteher the description is bad or not
+    :hostname: the hostname of the url
+    :description: the description to check
     """
     host = hostname.replace('www.','').lower().strip()
     length = len(description)
@@ -66,6 +77,8 @@ def descriptionBad(hostname: str, description: str) -> bool:
 def prepare_snippets(results: list) -> list:
     """
     prepare the snippets to be used in the reranking
+    :results: the results to be prepared
+    :return: the prepared snippets
     """
     snippets = []
     for result in results:
@@ -88,17 +101,19 @@ def prepare_snippets(results: list) -> list:
 
 
 
-async def asyncBraveSearch(query, prefix='', count=20):
+async def asyncBraveSearch(query, prefix='', count=20) -> list:
     """
     method to search using brave search
-    
+    :query: the query to search
+    :prefix: the prefix to add to the query defaults to none
+    :return: the search results
     """
     url = f"https://api.search.brave.com/res/v1/web/search?q={prefix}{query}"
 
     payload = {
         'count': str(count),
-        'text_decorations': 'false',  # Convert boolean to lowercase string
-        'rich': 'true',               # Convert boolean to lowercase string
+        'text_decorations': 'false',  
+        'rich': 'true',
         'result_filter': 'web',
     }
     headers = {
@@ -115,9 +130,14 @@ async def asyncBraveSearch(query, prefix='', count=20):
                 return []
             
 
-async def searchMultipleQueries(queries, prefix='', count=20):
+async def search_multiple_queries(queries, prefix='', count=20) -> list:
     """
     search multiple queries using brave search at once
+    :queries: the queries to search
+    :prefix: the prefix to add to the query defaults to ''
+    :count: the number of results to return for each query
+    :return: the search results
+
     """
     tasks = [asyncBraveSearch(query, prefix, count) for query in queries]
 
@@ -130,11 +150,14 @@ async def searchMultipleQueries(queries, prefix='', count=20):
     return combined_results
 
 
-async def generatedSearch(messages, count=20):
+async def generated_search(messages, count=20):
     """
-    generate querys to search and search them
+    generate query's to search and search them
+    :messages: the messages to generate the search from
+    :count: the number of results to return
+    :return: the search results and the search query
     """
-    searchQuery ={}
+    search_query ={}
     try:
         msgs = copy.deepcopy(messages)
         msgs[-1]['content'] +='\n[SEARCH]'
@@ -147,20 +170,23 @@ async def generatedSearch(messages, count=20):
             frequency_penalty=0,
             presence_penalty=0
         )
-        searchQuery = json.loads(response.choices[0].message.content.replace("'", "\""))
-        arr = await searchMultipleQueries(searchQuery['searches'])
+        search_query = json.loads(response.choices[0].message.content.replace("'", "\""))
+        arr = await search_multiple_queries(search_query['searches'])
         snippets = prepare_snippets(arr)
         if len(snippets) <= 2 or len(snippets) <= count:
             return snippets, {}
-        return rerank(searchQuery['question'], snippets, top_n=count), searchQuery
+        return rerank(search_query['question'], snippets, top_n=count), search_query
     except Exception as e:
         print(e)
         return [],{}
 
 
-def askBot(messages,sources):
+def use_llm(messages,sources):
     """
     ask chatgpt a question given message history and sources
+    :messages: the message history
+    :sources: the sources to use
+    :return: the response from the llm
     """
     msgs =[]
     if sources:
@@ -168,7 +194,6 @@ def askBot(messages,sources):
         msgs[-1]['content'] = f'SOURCES: {sources}\n\n\n\nUSER: {msgs[-1]["content"]}'
     else:
         msgs = messages
-    print(msgs)
     return client.chat.completions.create(
     model="gpt-4-1106-preview",
     messages=msgs,

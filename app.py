@@ -1,6 +1,6 @@
 # pylint: disable=all
 import streamlit as st
-from functions import generatedSearch, askBot, prepare_string
+from functions import generated_search, use_llm, prepare_string
 import asyncio
 
     
@@ -36,7 +36,7 @@ if prompt := st.chat_input("What do you want to know?"):
     # Add user message to chat history
     st.session_state.messages.append({"role": "user", "content": prompt})
     # Generate search query and sources returned
-    sources, query = asyncio.run(generatedSearch(st.session_state.messages,count=8))
+    sources, query = asyncio.run(generated_search(st.session_state.messages,count=8))
 
     st.session_state.sources.append(sources)
 
@@ -48,7 +48,7 @@ if prompt := st.chat_input("What do you want to know?"):
         message_placeholder = st.empty()
         full_response = ""
 
-        for token in askBot(st.session_state.messages, sources):
+        for token in use_llm(st.session_state.messages, sources):
             full_response += (token.choices[0].delta.content or "")
             message_placeholder.markdown(full_response + "▌")
         message_placeholder.markdown(full_response)
