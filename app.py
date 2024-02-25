@@ -67,7 +67,8 @@ This is a proof of concept for a system that makes multiple searches at once to 
 Training Dataset: [sruly/StepBackSearch](https://huggingface.co/datasets/sruly/StepBackSearch) based on [OpenAssistant/oasst1](https://huggingface.co/datasets/OpenAssistant/oasst1)
 
 """.strip())
-
+    st.image('search.png')
+    
 
 
 
